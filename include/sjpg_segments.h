@@ -63,7 +63,8 @@ public:
     LOG_INFO("COM segment\n");
     LOG_INFO("\tFile position: %zu\n", file_pos);
     LOG_INFO("\tLength: %d\n", length);
-    LOG_INFO("\tComment: %s\n", comment.data());
+    auto temp = std::string(comment.begin(), comment.end());
+    LOG_INFO("\tComment: %s\n", temp.c_str());
   }
 };
 
@@ -119,7 +120,7 @@ class DHTSegment {
 public:
   size_t file_pos{0}; // segment start position in file(without marker)
   uint16_t length{0};
-  uint8_t ac_or_dc{0};
+  uint8_t ac_or_dc{0}; // 0: DC, 1: AC
   uint8_t table_id{0};
   std::vector<uint8_t> symbol_counts;
   std::vector<uint8_t> symbols;

@@ -11,7 +11,12 @@ public:
   void append(const std::string &s) { data_.append(s); }
   size_t getPosition() const { return pos_; }
   size_t getSize() const { return data_.size(); }
-  char getBit() { return data_[pos_++]; }
+  char getBit() {
+    if(pos_ >= data_.size()){
+      throw std::out_of_range("BitStream out of range");
+    }
+    return data_[pos_++];
+  }
   std::string getBitN(size_t n) {
     std::string bits;
     for (size_t i = 0; i < n; i++) {

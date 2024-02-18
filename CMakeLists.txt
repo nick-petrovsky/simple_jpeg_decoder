@@ -3,6 +3,13 @@ project(simple_jpeg_codec)
 
 set(CMAKE_CXX_STANDARD 17)
 
+option(SJPG_ENABLE_ASAN "Enable AddressSanitizer" OFF)
+
+if(SJPG_ENABLE_ASAN)
+    message(STATUS "build with ASAN .........................")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+endif()
+
 add_subdirectory(3rdparty)
 
 add_library(sjpg INTERFACE)

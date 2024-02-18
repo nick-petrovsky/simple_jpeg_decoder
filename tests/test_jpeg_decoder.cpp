@@ -55,31 +55,40 @@ public:
     buildHuffmanTable();
 
     const auto pixel_count = sof0_.width * sof0_.height;
-    auto Y_decoded_data = std::vector<uint8_t>(pixel_count, 0);
+    y_decoded_data_.resize(pixel_count, 0);
     auto y_index = 0;
-    auto U_decoded_data = std::vector<uint8_t>(pixel_count, 0);
-    auto V_decoded_data = std::vector<uint8_t>(pixel_count, 0);
+    u_decoded_data_.resize(pixel_count, 0);
+    auto u_index = 0;
+    v_decoded_data_.resize(pixel_count, 0);
+    auto v_index = 0;
 
-    const auto mcu_count = pixel_count / 64;
-    auto ac_diff = 0;
+    const auto mcu_count = pixel_count / kMCUPixelSize;
+    int16_t pre_dc_value_y = 0;
+    int16_t pre_dc_value_u = 0;
+    int16_t pre_dc_value_v = 0;
+
     for (int i = 0; i < mcu_count; i++) {
-      // decode Y
-      // which huffman table to use?
-      auto ac_or_dc = 0;
-      auto htable_ac_id = sos_.huffman_table_id_ac[0];
-      auto htable_dc_id = sos_.huffman_table_id_dc[0];
+      auto y = deHuffman(0, pre_dc_value_y);
+      auto u = deHuffman(1, pre_dc_value_u);
+      auto v = deHuffman(2, pre_dc_value_v);
 
-      ac_or_dc = 0;
-      const auto &ac_htable = huffman_table_.at({ac_or_dc, htable_ac_id});
+      y = deZigZag(y);
+      u = deZigZag(u);
+      v = deZigZag(v);
 
-      ac_or_dc = 1;
-      const auto &dc_htable = huffman_table_.at({ac_or_dc, htable_dc_id});
+      auto idct_y = idct(y);
+      auto idct_u = idct(u);
+      auto idct_v = idct(v);
 
-      // decode ac value
+      performLevelShift(idct_y);
+      performLevelShift(idct_u);
+      performLevelShift(idct_v);
 
-      // decode U
-
-      // decode V
+      for (int j = 0; j < kMCUPixelSize; j++) {
+        y_decoded_data_[y_index++] = y[j];
+        u_decoded_data_[u_index++] = u[j];
+        v_decoded_data_[v_index++] = v[j];
+      }
     }
 
     return 0;
@@ -97,6 +106,110 @@ public:
 
 private:
   bool isFileOpened() { return in_file_.is_open(); }
+  void performLevelShift(std::vector<float> &data) {
+    for (auto i = 0; i < data.size(); ++i) {
+      data[i] += 128;
+    }
+  }
+  std::vector<float> idct(const std::vector<int16_t> &data) {
+
+    std::vector<float> result(kMCUPixelSize, 0.0f);
+    for (auto y = 0; y < 8; ++y) {
+      for (auto x = 0; x < 8; ++x) {
+        auto sum = 0.0f;
+
+        for (auto u = 0; u < 8; ++u) {
+          for (auto v = 0; v < 8; ++v) {
+            float cu = (u == 0) ? 1.0f / std::sqrt(2.0f) : 1.0f;
+            float cv = (v == 0) ? 1.0f / std::sqrt(2.0f) : 1.0f;
+            auto data_value = data[u * 8 + v];
+
+            sum += cu * cv * data_value *
+                   std::cos((2 * x + 1) * u * M_PI / 16.0) *
+                   std::cos((2 * y + 1) * v * M_PI / 16.0);
+          }
+        }
+
+        sum *= 0.25;
+        result[y * 8 + x] = sum;
+      }
+    }
+
+    return result;
+  }
+  std::vector<int16_t> deZigZag(const std::vector<int16_t> &data) {
+    constexpr static int zz_order[kMCUPixelSize] = {
+        0,  1,  5,  6,  14, 15, 27, 28, 2,  4,  7,  13, 16, 26, 29, 42,
+        3,  8,  12, 17, 25, 30, 41, 43, 9,  11, 18, 24, 31, 40, 44, 53,
+        10, 19, 23, 32, 39, 45, 52, 54, 20, 22, 33, 38, 46, 51, 55, 60,
+        21, 34, 37, 47, 50, 56, 59, 61, 35, 36, 48, 49, 57, 58, 62, 63};
+
+    std::vector<int16_t> zigzag_data(kMCUPixelSize, 0);
+    for (int i = 0; i < kMCUPixelSize; i++) {
+      zigzag_data[zz_order[i]] = data[i];
+    }
+    return zigzag_data;
+  }
+  std::vector<int16_t> deHuffman(int component_id, int16_t &pre_dc_value) {
+    std::vector<int16_t> decoded_data(kMCUPixelSize, 0);
+    int index = 0;
+
+    auto ac_or_dc = 0;
+    auto htable_ac_id = sos_.huffman_table_id_ac[component_id];
+    auto htable_dc_id = sos_.huffman_table_id_dc[component_id];
+
+    ac_or_dc = 0;
+    const auto &dc_htable = huffman_table_.at({ac_or_dc, htable_ac_id});
+    ac_or_dc = 1;
+    const auto &ac_table = huffman_table_.at({ac_or_dc, htable_dc_id});
+
+    const auto qtable_id = sof0_.quantization_table_id[component_id];
+    const auto &qtable = dqt_[qtable_id].q_table;
+
+    // decode ac value
+    auto dc_code_length = dc_htable.getSymbol(st_);
+    auto dc_bits = st_.getBitN(dc_code_length);
+    int16_t dc_value = decodeNumber(dc_code_length, dc_bits) + pre_dc_value;
+    pre_dc_value = dc_value;
+
+    int16_t dequant_dc_value = dc_value * qtable[0];
+    decoded_data[index++] = dequant_dc_value;
+
+    // decode dc value
+    for (; index < kMCUPixelSize;) {
+      auto rrrr_ssss = ac_table.getSymbol(st_);
+      // EOF
+      if (rrrr_ssss == 0) {
+        break;
+      }
+      auto run_length = rrrr_ssss >> 4;
+      auto ssss = rrrr_ssss & 0x0F; // ssss is the code length
+      auto bits = st_.getBitN(ssss);
+      int16_t non_zero_value = decodeNumber(ssss, bits);
+
+      if (run_length == 15 && non_zero_value == 0) {
+        index += 16;
+      } else {
+        // insert 0s
+        index += run_length;
+        // insert non zero value
+        auto de_quant_value = non_zero_value * qtable[index];
+        decoded_data[index++] = de_quant_value;
+      }
+    }
+
+    return decoded_data;
+  }
+
+  static int16_t decodeNumber(uint16_t code_length, const std::string &bits) {
+    auto l = 1 << (code_length - 1); // 2**(code_length-1)
+    auto v = std::bitset<16>(bits).to_ulong();
+    if (v >= l) {
+      return v;
+    } else {
+      return v - (2 * l - 1);
+    }
+  };
 
   void parseSOISegment() {
     soi_.file_pos = in_file_.tellg();
@@ -179,7 +292,7 @@ private:
     dqt.precision = tmp >> 4;
     dqt.q_table_id = tmp & 0x0F;
 
-    const static int q_table_size = 64;
+    const static int q_table_size = kMCUPixelSize;
     dqt.q_table.resize(q_table_size);
     in_file_.read(reinterpret_cast<char *>(dqt.q_table.data()), q_table_size);
 
@@ -330,6 +443,12 @@ private:
 
   std::string scan_data_;
   BitStream st_;
+
+  std::vector<uint8_t> y_decoded_data_;
+  std::vector<uint8_t> u_decoded_data_;
+  std::vector<uint8_t> v_decoded_data_;
+
+  constexpr static int kMCUPixelSize = 64;
 };
 } // namespace sjpg_codec
 
