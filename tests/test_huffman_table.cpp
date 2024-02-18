@@ -3,8 +3,10 @@
 //
 #include <numeric>
 
-#include <gmock/gmock.h>
+#include "sjpg_bit_stream.h"
 #include "sjpg_huffman_table.h"
+#include <gmock/gmock.h>
+
 using namespace testing;
 using namespace sjpg_codec;
 using namespace std;
@@ -56,4 +58,23 @@ TEST_F(AHuffmanTable, ThrowsIfCodeIsInvalid) {
   auto htable = HuffmanTable(sym_counts, symbols);
 
   ASSERT_THROW(htable.getSymbol("111"), std::out_of_range);
+}
+
+TEST_F(AHuffmanTable, CanGetSymbolFromBitStream) {
+  auto htable = HuffmanTable(sym_counts, symbols);
+  BitStream bitStream;
+  bitStream.append("0001110"); // 0, 1, 3
+
+  ASSERT_THAT(htable.getSymbol(bitStream), Eq(0));
+  ASSERT_THAT(htable.getSymbol(bitStream), Eq(1));
+  ASSERT_THAT(htable.getSymbol(bitStream), Eq(3));
+}
+
+TEST_F(AHuffmanTable, GetSymbolFromBitStreamIncreaseStreamPosition) {
+  auto htable = HuffmanTable(sym_counts, symbols);
+  BitStream st;
+  st.append("0001110"); // 0, 1, 3
+
+  htable.getSymbol(st);
+  ASSERT_THAT(st.getPosition(), Eq(2));
 }

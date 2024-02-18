@@ -7,6 +7,10 @@
 #include "sjpg_log.h"
 #include <vector>
 namespace sjpg_codec::segments {
+
+const uint16_t kJFIFByteFF = 0xFF;
+const uint16_t kEmptyByte = 0x00;
+
 class SOISegment {
 public:
   size_t file_pos{0}; // segment start position in file(without marker)
@@ -130,13 +134,13 @@ public:
 
     LOG_INFO("\tSymbol counts(%zu): \n", symbol_counts.size());
     for (auto c : symbol_counts) {
-      LOG_INFO("%d ", c);
+      LOG_INFO("%d,", c);
     }
     LOG_INFO("\n");
 
     LOG_INFO("\tSymbols(%zu): \n", symbols.size());
     for (auto s : symbols) {
-      LOG_INFO("%d ", s);
+      LOG_INFO("%d,", s);
     }
     LOG_INFO("\n");
   }

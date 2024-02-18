@@ -1,10 +1,10 @@
 //
 // Created by user on 2/7/24.
 //
+#include "sjpg_bit_stream.h"
+#include "sjpg_huffman_table.h"
 #include "sjpg_segments.h"
 #include <fstream>
-#include <numeric>
-#include <vector>
 
 #include <gmock/gmock.h>
 
@@ -32,6 +32,7 @@ public:
       return -1;
     }
 
+    auto ret = 0;
     for (;;) {
       if (in_file_.eof()) {
         LOG_INFO("End of file\n");
@@ -39,10 +40,46 @@ public:
       }
 
       auto b = readByte();
-      if (b == 0xFF) {
+      if (b == kJFIFByteFF) {
         b = readByte();
-        parseSegment(b);
+        ret = parseSegment(b);
       }
+    }
+
+    if (ret != 0) {
+      LOG_ERROR("Failed to parse segment\n");
+      return ret;
+    }
+
+    // decode scan data
+    buildHuffmanTable();
+
+    const auto pixel_count = sof0_.width * sof0_.height;
+    auto Y_decoded_data = std::vector<uint8_t>(pixel_count, 0);
+    auto y_index = 0;
+    auto U_decoded_data = std::vector<uint8_t>(pixel_count, 0);
+    auto V_decoded_data = std::vector<uint8_t>(pixel_count, 0);
+
+    const auto mcu_count = pixel_count / 64;
+    auto ac_diff = 0;
+    for (int i = 0; i < mcu_count; i++) {
+      // decode Y
+      // which huffman table to use?
+      auto ac_or_dc = 0;
+      auto htable_ac_id = sos_.huffman_table_id_ac[0];
+      auto htable_dc_id = sos_.huffman_table_id_dc[0];
+
+      ac_or_dc = 0;
+      const auto &ac_htable = huffman_table_.at({ac_or_dc, htable_ac_id});
+
+      ac_or_dc = 1;
+      const auto &dc_htable = huffman_table_.at({ac_or_dc, htable_dc_id});
+
+      // decode ac value
+
+      // decode U
+
+      // decode V
     }
 
     return 0;
@@ -65,7 +102,8 @@ private:
     soi_.file_pos = in_file_.tellg();
     soi_.print();
   }
-  void parseSegment(uint8_t b) {
+  int parseSegment(uint8_t b) {
+    auto ret = 0;
     switch (b) {
     case SOISegment::marker:
       parseSOISegment();
@@ -80,20 +118,20 @@ private:
       parseDQTSegment();
       break;
     case SOF0Segment::marker:
-      parseSOF0Segment();
+      ret = parseSOF0Segment();
       break;
     case DHTSegment::marker:
       parseDHTSegment();
       break;
     case SOSSegment::marker:
       parseSOSSegment();
-      break;
-    case EOISegment::marker:
-      parseEOISegment();
+      scanImageData();
       break;
     default:
       break;
     }
+
+    return ret;
   }
   void parseAPP0Segment() {
     app0_.file_pos = in_file_.tellg();
@@ -150,7 +188,7 @@ private:
     dqt.print();
   }
 
-  void parseSOF0Segment() {
+  int parseSOF0Segment() {
     sof0_.file_pos = in_file_.tellg();
     sof0_.length = read2BytesBigEndian();
     sof0_.precision = readByte();
@@ -158,6 +196,7 @@ private:
     sof0_.width = read2BytesBigEndian();
     sof0_.num_components = readByte();
 
+    bool is_non_sampled = true;
     for (int i = 0; i < sof0_.num_components; i++) {
       auto b0 = readByte();
       auto b1 = readByte();
@@ -166,9 +205,22 @@ private:
       sof0_.component_id.push_back(b0);
       sof0_.sampling_factor.push_back(b1);
       sof0_.quantization_table_id.push_back(b2);
+
+      auto h_sampling_factor = b1 >> 4;
+      auto v_sampling_factor = b1 & 0x0F;
+
+      if (h_sampling_factor != 1 || v_sampling_factor != 1) {
+        is_non_sampled = false;
+      }
     }
 
     sof0_.print();
+    if (!is_non_sampled) {
+      LOG_INFO("Sampled image is not support ,only support yuv 4:4:4\n");
+      return -1;
+    }
+
+    return 0;
   }
 
   void parseDHTSegment() {
@@ -215,6 +267,31 @@ private:
     sos_.print();
   }
 
+  void scanImageData() {
+    for (;;) {
+      auto b = readByte();
+
+      if (b == kJFIFByteFF) {
+        auto pre_b = b;
+        auto next_b = readByte();
+
+        if (next_b == EOISegment::marker) {
+          parseEOISegment();
+          break;
+        } else if (next_b == kEmptyByte) {
+          std::bitset<8> bits(pre_b);
+          st_.append(bits.to_string());
+          continue;
+        }
+      }
+
+      std::bitset<8> bits(b);
+      st_.append(bits.to_string());
+    }
+
+    LOG_INFO("Scan data size: %zu\n", st_.getSize());
+  }
+
   uint16_t read2BytesBigEndian() {
     uint8_t byte1;
     uint8_t byte2;
@@ -228,6 +305,14 @@ private:
     return value;
   }
 
+  void buildHuffmanTable() {
+    for (const auto &dht : dht_) {
+      auto id = std::make_pair(dht.ac_or_dc, dht.table_id);
+      auto table = HuffmanTable(dht.symbol_counts, dht.symbols);
+      huffman_table_.insert({id, table});
+    }
+  }
+
   std::ifstream in_file_;
   std::string filepath_;
 
@@ -238,8 +323,13 @@ private:
   std::vector<DQTSegment> dqt_;
   SOF0Segment sof0_;
   std::vector<DHTSegment> dht_;
+  std::map<std::pair<uint8_t, uint8_t>, HuffmanTable>
+      huffman_table_; // <ac/dc, table_id>
   SOSSegment sos_;
   EOISegment eoi_;
+
+  std::string scan_data_;
+  BitStream st_;
 };
 } // namespace sjpg_codec
 

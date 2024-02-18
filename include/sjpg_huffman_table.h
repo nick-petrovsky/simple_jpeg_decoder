@@ -5,10 +5,10 @@
 #ifndef SIMPLE_JPEG_CODEC_SJPG_HUFFMAN_TABLE_H
 #define SIMPLE_JPEG_CODEC_SJPG_HUFFMAN_TABLE_H
 #include "sjpg_log.h"
+#include <bitset>
 #include <map>
 #include <numeric>
 #include <vector>
-#include <bitset>
 namespace sjpg_codec {
 class HuffmanTable {
 public:
@@ -43,6 +43,16 @@ public:
       throw std::out_of_range("Code not found");
     }
     return code_symbol_map.at(code);
+  }
+
+  uint16_t getSymbol(BitStream &st) const {
+    std::string code;
+    while (true) {
+      code.push_back(st.getBit());
+      if (contains(code)) {
+        return getSymbol(code);
+      }
+    }
   }
 
   void print() const {
