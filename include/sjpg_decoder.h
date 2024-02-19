@@ -55,22 +55,20 @@ public:
 
     const auto pixel_count = sof0_.width * sof0_.height;
     y_decoded_data_.resize(pixel_count, 0);
-    auto y_index = 0;
     u_decoded_data_.resize(pixel_count, 0);
-    auto u_index = 0;
     v_decoded_data_.resize(pixel_count, 0);
-    auto v_index = 0;
 
     auto num_block_in_x_dir = sof0_.width / 8;
     auto num_block_in_y_dir = sof0_.height / 8;
 
-    const auto mcu_count = pixel_count / kMCUPixelSize;
     int16_t pre_dc_value_y = 0;
     int16_t pre_dc_value_u = 0;
     int16_t pre_dc_value_v = 0;
 
+    auto mcu_count = 0;
     for (auto y = 0; y < num_block_in_y_dir; ++y) {
       for (auto x = 0; x < num_block_in_x_dir; ++x) {
+        mcu_count++;
         auto y_data = deHuffman(0, pre_dc_value_y);
         auto u_data = deHuffman(1, pre_dc_value_u);
         auto v_data = deHuffman(2, pre_dc_value_v);
@@ -144,8 +142,8 @@ private:
   std::vector<float> idct(const std::vector<int16_t> &data) {
 
     std::vector<float> result(kMCUPixelSize, 0.0f);
-    for (auto x = 0; x < 8; ++x) {
-      for (auto y = 0; y < 8; ++y) {
+    for (auto y = 0; y < 8; ++y) {
+      for (auto x = 0; x < 8; ++x) {
         auto sum = 0.0f;
 
         for (auto u = 0; u < 8; ++u) {
@@ -156,14 +154,14 @@ private:
             float t1 = cv * std::cos((2 * y + 1) * v * M_PI / 16.0);
 
             // colum major
-            auto data_value = data[v * 8 + u];
+            auto data_value = data[u * 8 + v];
 
-            sum += data_value * t0 * t1;
+            sum += (data_value * t0 * t1);
           }
         }
 
         sum *= 0.25;
-        result[y * 8 + x] = sum;
+        result[x * 8 + y] = sum;
       }
     }
 
@@ -214,26 +212,30 @@ private:
       if (rrrr_ssss == 0) {
         break;
       }
-      auto run_length = rrrr_ssss >> 4;
-      auto ssss = rrrr_ssss & 0x0F; // ssss is the code length
-      auto bits = st_.getBitN(ssss);
-      int16_t non_zero_value = decodeNumber(ssss, bits);
+      auto zero_count = rrrr_ssss >> 4;
+      auto category = rrrr_ssss & 0x0F; // ssss is the code length
+      auto bits = st_.getBitN(category);
+      int16_t non_zero_value = decodeNumber(category, bits);
 
-      if (run_length == 15 && non_zero_value == 0) {
+      if (zero_count == 15 && category == 0) {
         index += 16;
-      } else {
-        // insert 0s
-        index += run_length;
-        // insert non zero value
-        auto de_quant_value = non_zero_value * qtable[index];
-        decoded_data[index++] = de_quant_value;
+        continue;
       }
+
+      // insert 0s
+      index += zero_count;
+      // insert non zero value
+      auto de_quant_value = non_zero_value * qtable[index];
+      decoded_data[index++] = de_quant_value;
     }
 
     return decoded_data;
   }
 
   static int16_t decodeNumber(uint16_t code_length, const std::string &bits) {
+    if (bits.empty()) {
+      return 0;
+    }
     auto l = 1 << (code_length - 1); // 2**(code_length-1)
     auto v = std::bitset<16>(bits).to_ulong();
     if (v >= l) {
