@@ -1,4 +1,3 @@
-#include "libyuv.h"
 #include "sjpg_decoder.h"
 #include <iostream>
 void saveRGBTOPPM(uint8_t *data, int linesize, int width, int height,
@@ -19,14 +18,6 @@ void saveRGBTOPPM(uint8_t *data, int linesize, int width, int height,
   for (int y = 0; y < height; y++) {
     uint8_t *img_row = data + y * linesize;
     fwrite(img_row, 1, width * kBytesPerPixel, pFile);
-    //    if(y == 0){
-    //      for(int i = 0; i < width * kBytesPerPixel; i+=3){
-    //        auto r = img_row[i];
-    //        auto g = img_row[i+1];
-    //        auto b = img_row[i+2];
-    //        printf("r: %d, g: %d, b: %d\n", r, g, b);
-    //      }
-    //    }
   }
 
   // Close file
