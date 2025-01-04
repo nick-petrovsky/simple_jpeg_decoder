@@ -2,9 +2,10 @@
 // Created by user on 2/18/24.
 //
 
-#ifndef SIMPLE_JPEG_CODEC_SJPG_BIT_STREAM_H
-#define SIMPLE_JPEG_CODEC_SJPG_BIT_STREAM_H
+# pragma once
+
 #include <string>
+#include <stdexcept>
 namespace sjpg_codec {
 class BitStream {
 public:
@@ -30,5 +31,3 @@ private:
   size_t pos_{0};
 };
 } // namespace sjpg_codec
-
-#endif // SIMPLE_JPEG_CODEC_SJPG_BIT_STREAM_H

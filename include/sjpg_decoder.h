@@ -2,12 +2,13 @@
 // Created by user on 2/18/24.
 //
 
-#ifndef SIMPLE_JPEG_CODEC_SJPG_DECODER_H
-#define SIMPLE_JPEG_CODEC_SJPG_DECODER_H
+# pragma once
+
 #include "sjpg_bit_stream.h"
 #include "sjpg_huffman_table.h"
 #include "sjpg_segments.h"
 #include <fstream>
+#include <cmath>
 
 namespace sjpg_codec {
 using namespace segments;
@@ -480,4 +481,3 @@ private:
 };
 } // namespace sjpg_codec
 
-#endif // SIMPLE_JPEG_CODEC_SJPG_DECODER_H

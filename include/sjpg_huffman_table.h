@@ -1,14 +1,15 @@
 //
 // Created by user on 2/18/24.
 //
-
-#ifndef SIMPLE_JPEG_CODEC_SJPG_HUFFMAN_TABLE_H
-#define SIMPLE_JPEG_CODEC_SJPG_HUFFMAN_TABLE_H
+# pragma once
 #include "sjpg_log.h"
 #include <bitset>
 #include <map>
 #include <numeric>
 #include <vector>
+#include <cstdint>
+#include <cassert>
+
 namespace sjpg_codec {
 class HuffmanTable {
 public:
@@ -92,4 +93,3 @@ private:
 };
 } // namespace sjpg_codec
 
-#endif // SIMPLE_JPEG_CODEC_SJPG_HUFFMAN_TABLE_H
