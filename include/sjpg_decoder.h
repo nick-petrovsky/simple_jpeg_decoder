@@ -8,7 +8,15 @@
 #include "sjpg_huffman_table.h"
 #include "sjpg_segments.h"
 #include <fstream>
+
+#define _USE_MATH_DEFINES
 #include <cmath>
+
+// MSVC have additional header for constants
+#if defined _MSC_VER && !defined M_PI
+# include <corecrt_math_defines.h>
+#endif
+
 
 namespace sjpg_codec {
 using namespace segments;
