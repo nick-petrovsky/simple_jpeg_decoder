@@ -1,9 +1,8 @@
 //
 // Created by user on 2/7/24.
 //
+# pragma once 
 
-#ifndef SIMPLE_JPEG_CODEC_SJPG_SEGMENTS_H
-#define SIMPLE_JPEG_CODEC_SJPG_SEGMENTS_H
 #include "sjpg_log.h"
 #include <vector>
 namespace sjpg_codec::segments {
@@ -182,4 +181,3 @@ public:
 };
 } // namespace sjpg_codec::segments
 
-#endif // SIMPLE_JPEG_CODEC_SJPG_SEGMENTS_H

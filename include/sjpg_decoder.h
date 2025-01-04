@@ -2,12 +2,21 @@
 // Created by user on 2/18/24.
 //
 
-#ifndef SIMPLE_JPEG_CODEC_SJPG_DECODER_H
-#define SIMPLE_JPEG_CODEC_SJPG_DECODER_H
+# pragma once
+
 #include "sjpg_bit_stream.h"
 #include "sjpg_huffman_table.h"
 #include "sjpg_segments.h"
 #include <fstream>
+
+#define _USE_MATH_DEFINES
+#include <cmath>
+
+// MSVC have additional header for constants
+#if defined _MSC_VER && !defined M_PI
+# include <corecrt_math_defines.h>
+#endif
+
 
 namespace sjpg_codec {
 using namespace segments;
@@ -480,4 +489,3 @@ private:
 };
 } // namespace sjpg_codec
 
-#endif // SIMPLE_JPEG_CODEC_SJPG_DECODER_H

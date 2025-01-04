@@ -9,7 +9,7 @@ using namespace testing;
 class AJPEGDecoder : public Test {
 public:
   std::string filepath =
-      "/Users/user/Documents/develop/simple_jpeg_codec/resources/lenna.jpg";
+      "./resources/lenna.jpg";
   sjpg_codec::Decoder decoder;
 };
 
